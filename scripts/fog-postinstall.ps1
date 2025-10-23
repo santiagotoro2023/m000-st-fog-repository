@@ -29,6 +29,60 @@ try {
     Write-Log "Fehler beim Importieren des Moduls: $($_.Exception.Message)" "ERROR"
 }
 try {
+    Write-Log "Überprüfe, ob Git installiert ist..."
+    $gitPath = Get-Command git.exe -ErrorAction SilentlyContinue
+    if ($gitPath) {
+        Write-Log "Git gefunden. Versuche Git zu deinstallieren..."
+        $gitMSI = Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -like "Git*" }
+        if ($gitMSI) {
+            foreach ($git in $gitMSI) {
+                Write-Log "Deinstalliere: $($git.Name)..."
+                $git.Uninstall() | Out-Null
+                Write-Log "Git erfolgreich deinstalliert."
+            }
+        } else {
+            $gitUninstall = Get-ChildItem "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall" |
+                Get-ItemProperty |
+                Where-Object { $_.DisplayName -like "Git*" }
+            if ($gitUninstall) {
+                foreach ($entry in $gitUninstall) {
+                    Write-Log "Starte Deinstallation von $($entry.DisplayName)..."
+                    Start-Process -FilePath "msiexec.exe" -ArgumentList "/x $($entry.PSChildName) /quiet /norestart" -Wait
+                    Write-Log "Git erfolgreich deinstalliert."
+                }
+            } else {
+                Write-Log "Git Deinstallationsinformationen nicht gefunden." "WARN"
+            }
+        }
+    } else {
+        Write-Log "Git ist nicht installiert."
+    }
+} catch {
+    Write-Log "Fehler bei der Deinstallation von Git: $($_.Exception.Message)" "ERROR"
+}
+try {
+    Write-Log "Suche nach OEM-Key..."
+    $oemKey = (Get-CimInstance -ClassName SoftwareLicensingService).OA3xOriginalProductKey
+    if ($oemKey) {
+        Write-Log "OEM-Key gefunden. Aktiviere Windows..."
+        slmgr /ipk $oemKey | Out-Null
+        slmgr /ato | Out-Null
+        Write-Log "Windows erfolgreich aktiviert."
+    } else {
+        Write-Log "Kein OEM-Key gefunden." "WARN"
+    }
+} catch {
+    Write-Log "Fehler bei der Windows-Aktivierung: $($_.Exception.Message)" "ERROR"
+}
+try {
+    Write-Log "Entferne geplante Aufgabe 'StartUpdateWindows'..."
+    $taskName = "StartUpdateWindows"
+    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+    Write-Log "Geplante Aufgabe '$taskName' erfolgreich entfernt."
+} catch {
+    Write-Log "Fehler beim entfernen der Aufgabe: $($_.Exception.Message)" "ERROR"
+}
+try {
     Write-Log "Starte Windows Update..."
     Add-WUServiceManager -MicrosoftUpdate -Confirm:$false
     $updates = Get-WindowsUpdate -MicrosoftUpdate -IgnoreReboot -ErrorAction Stop
