@@ -29,7 +29,7 @@ try {
     Write-Log "Fehler beim Importieren des Moduls: $($_.Exception.Message)" "ERROR"
 }
 try {
-    Write-Log "Überprüfe, ob Git installiert ist..."
+    Write-Log "Verifizieren, ob Git installiert ist..."
     $gitPath = Get-Command git.exe -ErrorAction SilentlyContinue
     if ($gitPath) {
         Write-Log "Git gefunden. Versuche Git zu deinstallieren..."
@@ -83,37 +83,24 @@ try {
     Write-Log "Fehler beim entfernen der Aufgabe: $($_.Exception.Message)" "ERROR"
 }
 try {
-    Write-Log "Starte Windows Update..."
+    Write-Log "Starte Windows Update Suche..."
     Add-WUServiceManager -MicrosoftUpdate -Confirm:$false
     $updates = Get-WindowsUpdate -MicrosoftUpdate -IgnoreReboot -ErrorAction Stop
-
     if (-not $updates -or $updates.Count -eq 0) {
         Write-Log "Keine Updates gefunden. System ist aktuell."
     } else {
-        Write-Log "Es wurden $($updates.Count) Updates gefunden."
-        Write-Log "Beginne mit der Installation..."
-
+        Write-Log "Es wurden $($updates.Count) Updates gefunden:"
         foreach ($update in $updates) {
-            Write-Log "----------------------------------------------"
-            Write-Log "Installiere Update: $($update.Title)"
-
-            try {
-                if ($update.KBArticleIDs) {
-                    foreach ($kb in $update.KBArticleIDs) {
-                        Install-WindowsUpdate -MicrosoftUpdate -KBArticleID $kb -AcceptAll -IgnoreReboot -ErrorAction Stop | Out-Null
-                        Write-Log "Erfolgreich installiert: $($update.Title) ($kb)"
-                    }
-                } else {
-                    Write-Log "Update hat keine KB-ID, überspringe Installation." "WARN"
-                }
-            } catch {
-                Write-Log "Fehler beim Installieren von: $($update.Title)" "ERROR"
-                Write-Log "   -> $($_.Exception.Message)" "ERROR"
-                continue
-            }
+            Write-Log " - $($update.Title) (KB: $($update.KBArticleIDs -join ', '))"
         }
-
-        Write-Log "Alle Updates wurden verarbeitet. Das System muss ggf. neugestartet werden."
+        Write-Log "Starte Installation aller Updates..."
+        try {
+            $kbList = $updates | Where-Object { $_.KBArticleIDs } | ForEach-Object { $_.KBArticleIDs } | Select-Object -Unique
+            Install-WindowsUpdate -MicrosoftUpdate -KBArticleID $kbList -AcceptAll -IgnoreReboot -ErrorAction Stop -Verbose
+            Write-Log "Alle Updates wurden erfolgreich installiert. Das system muss ggf. neugestartet werden."
+        } catch {
+            Write-Log "Fehler bei der Installation: $($_.Exception.Message)" "ERROR"
+        }
     }
 } catch {
     Write-Log "Fehler mit Windows Update: $($_.Exception.Message)" "ERROR"
