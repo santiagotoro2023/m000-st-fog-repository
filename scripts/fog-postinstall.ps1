@@ -111,5 +111,33 @@ try {
     Write-Log "Fehler im Windows Update Prozess: $($_.Exception.Message)" "ERROR"
 }
 Write-Log "=== Script beendet ==="
+try {
+    Write-Log "Zeige Neustartmeldung und starte System in 15 Sekunden neu..."
+    $title = "Systemneustart erforderlich"
+    $message = "Das System wird in 15 Sekunden automatisch neu gestartet, um die Updates abzuschließen."
+    $notificationScript = @"
+[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
+\$template = @"
+<toast>
+  <visual>
+    <binding template='ToastGeneric'>
+      <text>\$title</text>
+      <text>\$message</text>
+    </binding>
+  </visual>
+</toast>
+"@
+\$xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+\$xml.LoadXml(\$template)
+\$toast = [Windows.UI.Notifications.ToastNotification]::new(\$xml)
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Windows Update Script").Show(\$toast)
+"@
+    powershell -NoProfile -WindowStyle Hidden -Command $notificationScript
+    Start-Sleep -Seconds 15
+    Restart-Computer -Force
+} catch {
+    Write-Log "Fehler beim Anzeigen der Neustartmeldung oder beim Neustart: $($_.Exception.Message)" "ERROR"
+}
 pause
 exit
