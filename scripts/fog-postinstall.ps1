@@ -75,35 +75,40 @@ try {
     Write-Log "Fehler bei der Windows-Aktivierung: $($_.Exception.Message)" "ERROR"
 }
 try {
-    Write-Log "Entferne geplante Aufgabe 'StartUpdateWindows'..."
-    $taskName = "StartUpdateWindows"
-    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
-    Write-Log "Geplante Aufgabe '$taskName' erfolgreich entfernt."
-} catch {
-    Write-Log "Fehler beim entfernen der Aufgabe: $($_.Exception.Message)" "ERROR"
-}
-try {
     Write-Log "Starte Windows Update Suche..."
     Add-WUServiceManager -MicrosoftUpdate -Confirm:$false
-    $updates = Get-WindowsUpdate -MicrosoftUpdate -IgnoreReboot -ErrorAction Stop
-    if (-not $updates -or $updates.Count -eq 0) {
-        Write-Log "Keine Updates gefunden. System ist aktuell."
-    } else {
+    $updatesFound = $true
+    $loopCount = 0
+    while ($updatesFound) {
+        $loopCount++
+        Write-Log "Update-Durchlauf #$loopCount wird gestartet..."
+        $updates = Get-WindowsUpdate -MicrosoftUpdate -AcceptAll -IgnoreReboot -ErrorAction Stop
+        if (-not $updates -or $updates.Count -eq 0) {
+            Write-Log "Keine weiteren Updates gefunden. System ist aktuell."
+            $updatesFound = $false
+            break
+        }
         Write-Log "Es wurden $($updates.Count) Updates gefunden:"
         foreach ($update in $updates) {
             Write-Log " - $($update.Title) (KB: $($update.KBArticleIDs -join ', '))"
         }
-        Write-Log "Starte Installation aller Updates..."
         try {
-            $kbList = $updates | Where-Object { $_.KBArticleIDs } | ForEach-Object { $_.KBArticleIDs } | Select-Object -Unique
-            Install-WindowsUpdate -MicrosoftUpdate -KBArticleID $kbList -AcceptAll -IgnoreReboot -ErrorAction Stop -Verbose
-            Write-Log "Alle Updates wurden erfolgreich installiert. Das system muss ggf. neugestartet werden."
+            Write-Log "Starte Installation aller  Updates..."
+            Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -IgnoreReboot -ErrorAction Stop -Verbose
+            Write-Log "Alle Updates des Durchlaufs #$loopCount wurden installiert."
         } catch {
-            Write-Log "Fehler bei der Installation: $($_.Exception.Message)" "ERROR"
+            Write-Log "Fehler bei der Installation im Durchlauf #$loopCount: $($_.Exception.Message)" "ERROR"
         }
+        Write-Log "Starte Windows Update Dienst neu..."
+        Restart-Service -Name wuauserv -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 15
     }
+    Write-Log "Alle Update Prozesse  abgeschlossen. Entferne geplante Aufgabe 'StartUpdateWindows'..."
+    $taskName = "StartUpdateWindows"
+    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+    Write-Log "Geplante Aufgabe '$taskName' erfolgreich entfernt."
 } catch {
-    Write-Log "Fehler mit Windows Update: $($_.Exception.Message)" "ERROR"
+    Write-Log "Fehler im Windows Update Prozess: $($_.Exception.Message)" "ERROR"
 }
 Write-Log "=== Script beendet ==="
 pause
