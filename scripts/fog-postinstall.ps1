@@ -112,28 +112,7 @@ try {
 }
 Write-Log "=== Script beendet ==="
 try {
-    Write-Log "Zeige Neustartmeldung und starte System in 15 Sekunden neu..."
-    $title = "Systemneustart erforderlich"
-    $message = "Das System wird in 15 Sekunden automatisch neu gestartet, um die Updates abzuschliessen."
-    Add-Type -AssemblyName 'Windows.UI' -ErrorAction SilentlyContinue
-    [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
-    [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
-    $toastXml = @"
-<toast>
-  <visual>
-    <binding template="ToastGeneric">
-      <text>$title</text>
-      <text>$message</text>
-    </binding>
-  </visual>
-</toast>
-"@
-    $xmlDoc = New-Object Windows.Data.Xml.Dom.XmlDocument
-    $xmlDoc.LoadXml($toastXml)
-    $toast = New-Object Windows.UI.Notifications.ToastNotification $xmlDoc
-    $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Windows Update Script")
-    $notifier.Show($toast)
-    Write-Log "Toast-Benachrichtigung erfolgreich angezeigt."
+    Write-Log  "Das System wird in 15 Sekunden automatisch neu gestartet, um die Updates abzuschliessen."
     Start-Sleep -Seconds 15
     Write-Log "Starte Computer neu..."
     Restart-Computer -Force
