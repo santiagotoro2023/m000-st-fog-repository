@@ -79,23 +79,19 @@ try {
     Add-WUServiceManager -MicrosoftUpdate -Confirm:$false
     $updatesFound = $true
     $loopCount = 0
-
     while ($updatesFound) {
         $loopCount++
         Write-Log "Update-Durchlauf #$loopCount wird gestartet..."
         $updates = Get-WindowsUpdate -MicrosoftUpdate -AcceptAll -IgnoreReboot -ErrorAction Stop
-
         if (-not $updates -or $updates.Count -eq 0) {
             Write-Log "Keine weiteren Updates gefunden. System ist aktuell."
             $updatesFound = $false
             break
         }
-
         Write-Log "Es wurden $($updates.Count) Updates gefunden:"
         foreach ($update in $updates) {
             Write-Log " - $($update.Title) (KB: $($update.KBArticleIDs -join ', '))"
         }
-
         try {
             Write-Log "Starte Installation aller Updates..."
             Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -IgnoreReboot -ErrorAction Stop -Verbose
@@ -103,12 +99,10 @@ try {
         } catch {
             Write-Log ("Fehler bei der Installation im Durchlauf #{0}: {1}" -f $loopCount, $_.Exception.Message) "ERROR"
         }
-
         Write-Log "Starte Windows Update Dienst neu..."
         Restart-Service -Name wuauserv -Force -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 15
     }
-
     Write-Log "Alle Update-Prozesse abgeschlossen. Entferne geplante Aufgabe 'StartUpdateWindows'..."
     $taskName = "StartUpdateWindows"
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
@@ -116,40 +110,36 @@ try {
 } catch {
     Write-Log ("Fehler im Windows Update Prozess: {0}" -f $_.Exception.Message) "ERROR"
 }
-
 Write-Log "=== Script beendet ==="
-
 try {
     Write-Log "Zeige Neustartmeldung und starte System in 15 Sekunden neu..."
     $title = "Systemneustart erforderlich"
-    $message = "Das System wird in 15 Sekunden automatisch neu gestartet, um die Updates abzuschließen."
-
-    $notificationScript = @'
-[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
-[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
-$template = @"
+    $message = "Das System wird in 15 Sekunden automatisch neu gestartet, um die Updates abzuschliessen."
+    Add-Type -AssemblyName 'Windows.UI' -ErrorAction SilentlyContinue
+    [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+    [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
+    $toastXml = @"
 <toast>
   <visual>
-    <binding template='ToastGeneric'>
+    <binding template="ToastGeneric">
       <text>$title</text>
       <text>$message</text>
     </binding>
   </visual>
 </toast>
 "@
-$xml = New-Object Windows.Data.Xml.Dom.XmlDocument
-$xml.LoadXml($template)
-$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
-[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Windows Update Script").Show($toast)
-'@
-
-    powershell -NoProfile -WindowStyle Hidden -Command $notificationScript
+    $xmlDoc = New-Object Windows.Data.Xml.Dom.XmlDocument
+    $xmlDoc.LoadXml($toastXml)
+    $toast = New-Object Windows.UI.Notifications.ToastNotification $xmlDoc
+    $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Windows Update Script")
+    $notifier.Show($toast)
+    Write-Log "Toast-Benachrichtigung erfolgreich angezeigt."
     Start-Sleep -Seconds 15
+    Write-Log "Starte Computer neu..."
     Restart-Computer -Force
 } catch {
     Write-Log ("Fehler beim Anzeigen der Neustartmeldung oder beim Neustart: {0}" -f $_.Exception.Message) "ERROR"
 }
-
 pause
 exit
 
