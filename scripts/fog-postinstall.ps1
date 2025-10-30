@@ -103,8 +103,8 @@ try {
         Restart-Service -Name wuauserv -Force -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 15
     }
-    Write-Log "Alle Update-Prozesse abgeschlossen. Entferne geplante Aufgabe 'StartUpdateWindows'..."
-    $taskName = "StartUpdateWindows"
+    Write-Log "Alle Update-Prozesse abgeschlossen. Entferne geplante Aufgabe 'fog-postinstall'..."
+    $taskName = "fog-postinstall"
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
     Write-Log "Geplante Aufgabe '$taskName' erfolgreich entfernt."
 } catch {
